@@ -3,7 +3,26 @@
 # Database connection command
 PSQL="psql --username=freecodecamp --dbname=number_guess -t --no-align -c"
 
+# Generate a random number between 1 and 1000
+SECRET_NUMBER=$(( RANDOM % 1000 + 1 ))
 
+# Prompt user for username
+echo "Enter your username:"
+read USERNAME
+
+# Check if user exists in the database
+USER_INFO=$($PSQL "SELECT games_played, best_game FROM users WHERE username='$USERNAME'")
+
+if [[ -z $USER_INFO ]]; then
+  # New user
+  echo "Welcome, $USERNAME! It looks like this is your first time here."
+  $PSQL "INSERT INTO users(username, games_played, best_game) VALUES('$USERNAME', 0, NULL)" > /dev/null
+  GAMES_PLAYED=0
+  BEST_GAME="N/A"
+else
+  # Extract values from database
+  GAMES_PLAYED=$(echo "$USER_INFO" | cut -d '|' -f1)
+  BEST_GAME=$(echo "$USER_INFO" | cut -d '|' -f2)
 
   # Handle NULL best_game case
   if [[ -z $BEST_GAME ]]; then
@@ -37,20 +56,15 @@ while true; do
     echo "You guessed it in $GUESSES tries. The secret number was $SECRET_NUMBER. Nice job!"
 
     # Update the database with game stats
-    USER_INFO=$($PSQL "SELECT games_played, best_game FROM users WHERE username='$USERNAME'")
-    GAMES_PLAYED=$(echo "$USER_INFO" | cut -d '|' -f1)
-    BEST_GAME=$(echo "$USER_INFO" | cut -d '|' -f2)
-
-    # Increment games played
     GAMES_PLAYED=$((GAMES_PLAYED + 1))
 
     # Update best game if it's the first game or a new best score
-    if [[ -z $BEST_GAME || $GUESSES -lt $BEST_GAME ]]; then
+    if [[ $BEST_GAME == "N/A" || $GUESSES -lt $BEST_GAME ]]; then
       BEST_GAME=$GUESSES
     fi
 
     # Update the database with the new stats
-    $PSQL "UPDATE users SET games_played=$GAMES_PLAYED, best_game=$BEST_GAME WHERE username='$USERNAME'"
+    $PSQL "UPDATE users SET games_played=$GAMES_PLAYED, best_game=$BEST_GAME WHERE username='$USERNAME'" > /dev/null
 
     # Exit the script after the correct guess
     break
